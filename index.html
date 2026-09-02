@@ -23,11 +23,11 @@ body{touch-action:pan-y}
 .content h2{font-weight:400;font-size:1.38em;line-height:1.2;text-align:left;margin:0 0 1.1em}
 .content p{margin:0 0 1em}
 .page-num{position:absolute;bottom:22px;left:0;right:0;text-align:center;font-size:18px;opacity:.55}
-.word{position:relative;display:inline;cursor:pointer;border-radius:50%;padding:0 .03em}
-.word.selected::after{
-  content:""; position:absolute; left:-.18em; right:-.18em; top:-.22em; bottom:-.20em;
-  border:2.5px solid rgba(120,28,22,.75); border-radius:52% 47% 55% 44%;
-  transform:rotate(-4deg); pointer-events:none;
+.word{position:relative;display:inline;padding:0 .03em;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.word.selected{
+  background:rgba(45,105,210,.32);
+  border-radius:2px;
+  box-shadow:0 0 0 1px rgba(45,105,210,.10);
 }
 #toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);font-family:Arial,sans-serif;font-size:12px;color:#fff;background:rgba(0,0,0,.62);padding:7px 10px;border-radius:14px;opacity:0;transition:.25s;pointer-events:none}
 </style>
@@ -383,6 +383,9 @@ body{touch-action:pan-y}
 <script>
 const screens=[...document.querySelectorAll('.cover,.page')];
 let current=0, startX=0, startY=0;
+let longPressTimer=null, pressedWord=null, longPressDone=false;
+const LONG_PRESS_MS=800;
+
 function show(n){
   current=Math.max(0,Math.min(screens.length-1,n));
   screens.forEach((s,i)=>s.classList.toggle('active',i===current));
@@ -390,32 +393,60 @@ function show(n){
 function next(){show(current+1)}
 function prev(){show(current-1)}
 
-document.addEventListener('touchstart',e=>{
-  if(!e.touches.length)return;
-  startX=e.touches[0].clientX; startY=e.touches[0].clientY;
-},{passive:true});
-document.addEventListener('touchend',e=>{
-  const t=e.changedTouches[0], dx=t.clientX-startX, dy=t.clientY-startY;
-  if(Math.abs(dx)>70 && Math.abs(dx)>Math.abs(dy)*1.3){
-    dx<0?next():prev();
-  }
-},{passive:true});
+function cancelLongPress(){
+  if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+  pressedWord=null;
+}
 
-document.addEventListener('click',e=>{
-  const w=e.target.closest('.word');
-  if(!w)return;
-  e.stopPropagation();
+function selectWord(w){
   document.querySelectorAll('.word.selected').forEach(x=>x.classList.remove('selected'));
   w.classList.add('selected');
   const page=w.closest('.page')?.dataset.page || '';
   const payload={page:Number(page),word:w.dataset.word,ts:Date.now()};
   localStorage.setItem('magic_book_last_choice',JSON.stringify(payload));
-  // Ready for phone-link module in version 2.
-  if(navigator.vibrate) navigator.vibrate(18);
+}
+
+document.addEventListener('touchstart',e=>{
+  if(!e.touches.length)return;
+  startX=e.touches[0].clientX; startY=e.touches[0].clientY;
+  longPressDone=false;
+  pressedWord=e.target.closest('.word');
+  if(pressedWord){
+    const target=pressedWord;
+    longPressTimer=setTimeout(()=>{
+      if(pressedWord===target){
+        selectWord(target);
+        longPressDone=true;
+        longPressTimer=null;
+      }
+    },LONG_PRESS_MS);
+  }
+},{passive:true});
+
+document.addEventListener('touchmove',e=>{
+  if(!e.touches.length)return;
+  const dx=e.touches[0].clientX-startX, dy=e.touches[0].clientY-startY;
+  if(Math.hypot(dx,dy)>14) cancelLongPress();
+},{passive:true});
+
+document.addEventListener('touchend',e=>{
+  const t=e.changedTouches[0], dx=t.clientX-startX, dy=t.clientY-startY;
+  cancelLongPress();
+  if(!longPressDone && Math.abs(dx)>70 && Math.abs(dx)>Math.abs(dy)*1.3){
+    dx<0?next():prev();
+  }
+},{passive:true});
+
+document.addEventListener('touchcancel',cancelLongPress,{passive:true});
+
+// Empêche le menu Android de copie/collage : seul le surlignage bleu du tour apparaît.
+document.addEventListener('contextmenu',e=>{
+  if(e.target.closest('.word')) e.preventDefault();
 });
 
-document.addEventListener('dblclick',e=>{
-  if(e.target.closest('.word')) e.target.closest('.word').classList.remove('selected');
+// Un simple toucher/clic ne sélectionne plus rien.
+document.addEventListener('click',e=>{
+  if(e.target.closest('.word')) e.preventDefault();
 });
 </script>
 </body>

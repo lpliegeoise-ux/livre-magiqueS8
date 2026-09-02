@@ -404,6 +404,11 @@ function selectWord(w){
   const page=w.closest('.page')?.dataset.page || '';
   const payload={page:Number(page),word:w.dataset.word,ts:Date.now()};
   localStorage.setItem('magic_book_last_choice',JSON.stringify(payload));
+  fetch('https://ntfy.sh/livre-magique-s8-7f3a9c2d', {
+    method:'POST',
+    headers:{'Content-Type':'text/plain','Title':'Livre magique'},
+    body: JSON.stringify(payload)
+  }).catch(()=>{});
 }
 
 document.addEventListener('touchstart',e=>{
